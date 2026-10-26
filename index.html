@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>고사장 거리 및 이동시간 산출</title>
+  </head>
+  <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+    <header class="bg-indigo-700 text-white">
+      <div class="page-wrap app-header">
+        <h1 class="app-title">고사장 이동시간<span class="app-title-aside">현재 위치 기준</span></h1>
+        <form id="originForm" class="origin-form">
+          <label for="startAddress" class="sr-only">출발지</label>
+          <input
+            type="text"
+            id="startAddress"
+            name="origin"
+            autocomplete="off"
+            placeholder="현재 위치를 확인하는 중..."
+            class="origin-input"
+          />
+          <button type="button" id="locateBtn" class="header-btn header-btn-light">내 위치</button>
+          <button type="submit" id="calcBtn" class="header-btn header-btn-solid">거리/시간 계산</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="page-wrap py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100svh-8.5rem)] lg:min-h-[560px]">
+      <div class="lg:col-span-8 flex flex-col gap-4 min-h-0 h-[70vh] lg:h-full">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-0">
+          <div class="p-4 border-b border-slate-100 flex justify-between items-center gap-3 bg-slate-50">
+            <h2 class="panel-title">고사장 목록 및 계산 결과</h2>
+            <span id="statusText" role="status" class="text-xs text-slate-500 text-right">고사장 목록을 불러오는 중...</span>
+          </div>
+          <div class="overflow-auto flex-1">
+            <table class="exam-table">
+              <thead>
+                <tr>
+                  <th scope="col">Index</th>
+                  <th scope="col">지역</th>
+                  <th scope="col">고사장명</th>
+                  <th scope="col">주소</th>
+                  <th scope="col">잔여좌석</th>
+                  <th scope="col">이동시간</th>
+                </tr>
+              </thead>
+              <tbody id="examTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-4 flex flex-col gap-4 min-h-0 h-[500px] lg:h-full">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-0">
+          <div class="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center gap-3">
+            <h3 class="panel-title">지도</h3>
+            <span id="selectedMarkerInfo" class="text-xs text-indigo-600 font-medium text-right">선택된 고사장 없음</span>
+          </div>
+          <div class="flex-1 w-full relative min-h-[400px]">
+            <div id="map" class="w-full h-full"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+      고사장 거리 산출 · OpenStreetMap &amp; OSRM Public API
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

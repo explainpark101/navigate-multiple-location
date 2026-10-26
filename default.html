@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고사장 거리 및 이동시간 산출 프로토타입</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #map { height: 100%; min-height: 400px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold flex items-center gap-2">
+                    <span>📍</span> 고사장 이동시간 계산기 (Open-Source Prototype)
+                </h1>
+                <p class="text-indigo-200 text-sm">API 키 불필요 · Nominatim + OSRM + Leaflet 기반</p>
+            </div>
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <input type="text" id="startAddress" placeholder="출발지 주소 입력 (예: 서울시청)" value="서울특별시 중구 세종대로 110" 
+                    class="px-3 py-2 rounded-lg text-slate-800 text-sm w-full md:w-72 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                <button onclick="calculateAll()" id="calcBtn" class="bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition shadow shrink-0">
+                    거리/시간 계산
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Table Section (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h2 class="font-semibold text-slate-700 text-sm">고사장 목록 및 계산 결과</h2>
+                    <span id="statusText" class="text-xs text-slate-500">출발지를 설정하고 계산 버튼을 누르세요.</span>
+                </div>
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse text-xs md:text-sm">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600 border-b border-slate-200">
+                                <th class="p-3 font-semibold text-center">Index</th>
+                                <th class="p-3 font-semibold">지역</th>
+                                <th class="p-3 font-semibold">고사장명</th>
+                                <th class="p-3 font-semibold">주소</th>
+                                <th class="p-3 font-semibold text-center">엘리베이터</th>
+                                <th class="p-3 font-semibold text-right">잔여좌석</th>
+                                <th class="p-3 font-semibold text-right">이동시간</th>
+                                <th class="p-3 font-semibold text-center">선택</th>
+                            </tr>
+                        </thead>
+                        <tbody id="examTableBody" class="divide-y divide-slate-100">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Section (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px] lg:h-full">
+                <div class="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 class="font-semibold text-slate-700 text-sm">🗺️ 지도 시각화</h3>
+                    <span id="selectedMarkerInfo" class="text-xs text-indigo-600 font-medium">선택된 고사장 없음</span>
+                </div>
+                <div class="flex-1 w-full relative">
+                    <div id="map" class="w-full h-full"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+        고사장 거리 산출 프로토타입 · OpenStreetMap & OSRM Public API 사용
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Initial Mock Data matching required columns: [index, 지역, 고사장명, 주소, 엘리베이터 운영 여부, 잔여좌석, 미사용 column]
+        let examSites = [
+            { id: 1, region: "서울", name: "서울중학교", address: "서울특별시 중구 덕수궁길 15", elevator: "O", seats: 12, unused: "-", lat: null, lon: null, duration: null, distance: null },
+            { id: 2, region: "서울", name: "한국고등학교", address: "서울특별시 강남구 테헤란로 1", elevator: "X", seats: 5, unused: "-", lat: null, lon: null, duration: null, distance: null },
+            { id: 3, region: "서울", name: "종로정보학원", address: "서울특별시 종로구 우정국로 26", elevator: "O", seats: 24, unused: "-", lat: null, lon: null, duration: null, distance: null },
+            { id: 4, region: "경기", name: "수원중앙학원", address: "경기도 수원시 팔달구 매산로 1", elevator: "O", seats: 8, unused: "-", lat: null, lon: null, duration: null, distance: null },
+            { id: 5, region: "인천", name: "인천컴퓨터고", address: "인천광역시 남동구 정각로 29", elevator: "X", seats: 15, unused: "-", lat: null, lon: null, duration: null, distance: null }
+        ];
+
+        let map;
+        let markersGroup;
+        let startMarker = null;
+
+        // Initialize Map
+        window.addEventListener('DOMContentLoaded', () => {
+            map = L.map('map').setView([37.5665, 126.9780], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            markersGroup = L.layerGroup().addTo(map);
+            renderTable();
+        });
+
+        // Render Table Data
+        function renderTable() {
+            const tbody = document.getElementById('examTableBody');
+            tbody.innerHTML = '';
+
+            examSites.forEach((site, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition cursor-pointer";
+                tr.onclick = () => focusOnSite(idx);
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center font-mono text-slate-500">${site.id}</td>
+                    <td class="p-3">${site.region}</td>
+                    <td class="p-3 font-medium text-slate-900">${site.name}</td>
+                    <td class="p-3 text-slate-600 truncate max-w-[180px]" title="${site.address}">${site.address}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2 py-0.5 rounded text-xs font-semibold ${site.elevator === 'O' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${site.elevator}</span>
+                    </td>
+                    <td class="p-3 text-right font-mono">${site.seats}석</td>
+                    <td class="p-3 text-right font-mono font-semibold text-indigo-600">
+                        ${site.duration !== null ? formatDuration(site.duration) : '<span class="text-slate-400 font-normal">미산출</span>'}
+                    </td>
+                    <td class="p-3 text-center">
+                        <button onclick="event.stopPropagation(); focusOnSite(${idx})" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium underline">지도보기</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Format duration seconds to minutes/hours
+        function formatDuration(seconds) {
+            const mins = Math.round(seconds / 60);
+            if (mins < 60) return `약 ${mins}분`;
+            const hours = Math.floor(mins / 60);
+            const remainMins = mins % 60;
+            return `약 ${hours}시간 ${remainMins}분`;
+        }
+
+        // Geocode address using Nominatim (OpenStreetMap Free Geocoder)
+        async function geocode(address) {
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+                const response = await fetch(url, { headers: { 'User-Agent': 'ExamSitePrototype/1.0' } });
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+                }
+            } catch (e) {
+                console.error("Geocoding error:", e);
+            }
+            return null;
+        }
+
+        // Calculate travel time using OSRM Public Routing API
+        async function fetchOSRM(startLon, startLat, endLon, endLat) {
+            try {
+                const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    return {
+                        duration: data.routes[0].duration, // in seconds
+                        distance: data.routes[0].distance  // in meters
+                    };
+                }
+            } catch (e) {
+                console.error("OSRM routing error:", e);
+            }
+            return null;
+        }
+
+        // Main Calculation Trigger
+        async function calculateAll() {
+            const startAddr = document.getElementById('startAddress').value.trim();
+            const statusText = document.getElementById('statusText');
+            const btn = document.getElementById('calcBtn');
+
+            if (!startAddr) {
+                alert('출발지 주소를 입력해주세요.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '계산 중...';
+            statusText.textContent = '출발지 좌표 변환 및 경로 연산 중...';
+
+            // 1. Geocode Start Address
+            const startCoords = await geocode(startAddr);
+            if (!startCoords) {
+                alert('출발지 주소를 찾을 수 없습니다. 더 정확한 주소를 입력해주세요.');
+                btn.disabled = false;
+                btn.textContent = '거리/시간 계산';
+                statusText.textContent = '출발지 지오코딩 실패';
+                return;
+            }
+
+            // Update Start Marker on Map
+            if (startMarker) map.removeLayer(startMarker);
+            startMarker = L.marker([startCoords.lat, startCoords.lon], {
+                icon: L.divIcon({
+                    className: 'custom-start-icon',
+                    html: '<div style="background:#4f46e5;color:white;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:11px;box-shadow:0 2px 4px rgba(0,0,0,0.2);">출발지</div>',
+                    iconSize: [40, 24]
+                })
+            }).addTo(map).bindPopup(`<b>출발지</b><br>${startAddr}`);
+
+            markersGroup.clearLayers();
+            let bounds = L.latLngBounds([[startCoords.lat, startCoords.lon]]);
+
+            // 2. Process each exam site with delay to respect Nominatim rate limit (1 sec)
+            for (let i = 0; i < examSites.length; i++) {
+                let site = examSites[i];
+                statusText.textContent = `산출 중 (${i + 1}/${examSites.length}): ${site.name}`;
+
+                // Geocode site if not done yet
+                if (!site.lat || !site.lon) {
+                    const coords = await geocode(site.address);
+                    if (coords) {
+                        site.lat = coords.lat;
+                        site.lon = coords.lon;
+                    }
+                    // Rate limit pause (1 second)
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
+                if (site.lat && site.lon) {
+                    // Fetch OSRM Route
+                    const route = await fetchOSRM(startCoords.lon, startCoords.lat, site.lon, site.lat);
+                    if (route) {
+                        site.duration = route.duration;
+                        site.distance = route.distance;
+                    }
+
+                    // Add Marker to Map
+                    const marker = L.marker([site.lat, site.lon]).addTo(markersGroup);
+                    marker.bindPopup(`<b>${site.name}</b><br>${site.address}<br>이동시간: ${site.duration ? formatDuration(site.duration) : '계산불가'}`);
+                    bounds.extend([site.lat, site.lon]);
+                }
+            }
+
+            // 3. Sort exam sites by duration (ascending: nearest first)
+            examSites.sort((a, b) => {
+                if (a.duration === null) return 1;
+                if (b.duration === null) return -1;
+                return a.duration - b.duration;
+            });
+
+            // Re-assign index based on sorted order
+            examSites.forEach((site, index) => {
+                site.id = index + 1;
+            });
+
+            renderTable();
+            map.fitBounds(bounds, { padding: [50, 50] });
+
+            btn.disabled = false;
+            btn.textContent = '거리/시간 계산';
+            statusText.textContent = '계산 완료! 가까운 순서대로 정렬되었습니다.';
+        }
+
+        // Focus map on selected site
+        function focusOnSite(index) {
+            const site = examSites[index];
+            if (site.lat && site.lon) {
+                map.setView([site.lat, site.lon], 15);
+                document.getElementById('selectedMarkerInfo').textContent = `선택: ${site.name} (${site.duration ? formatDuration(site.duration) : '시간 미산출'})`;
+            }
+        }
+    </script>
+</body>
+</html>
