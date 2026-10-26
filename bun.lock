@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "vite-project",
+      "name": "map-navigations",
       "dependencies": {
         "@js-temporal/polyfill": "^0.5.1",
         "leaflet": "^1.9.4",
